@@ -46,13 +46,21 @@ valid (PW min max c pwstr) = cnt >= min && cnt <= max
     where
         cnt = count c pwstr
 
-countIncorrect :: [String] -> Int
-countIncorrect input = (length . filter id) bools
+countCorrect :: (PW -> Bool) -> [String] -> Int
+countCorrect validator input  = (length . filter id) bools
     where
-        bools = map valid $ pwreqs input
+        bools = map validator $ pwreqs input
 
 
 input :: IO [String]
 input = lines <$> readFile "input"
         
-main = countIncorrect <$> input
+main = (countCorrect valid) <$> input
+
+-- day 2.1
+
+valid' :: PW -> Bool
+valid' (PW pos1 pos2 c pwstr) = (pwstr !! idx1 == c) /= (pwstr !! idx2 == c)
+    where
+        idx1 = pos1 - 1
+        idx2 = pos2 - 1
