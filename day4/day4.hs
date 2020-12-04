@@ -34,6 +34,17 @@ data Passport = Passport
     , countryID :: Maybe ID
     } deriving (Show)
 
+data Passport1 = Passport1
+    { birthYear1 :: Bool
+    , issueYear1 :: Bool
+    , exprYear1 :: Bool
+    , height1 :: Bool
+    , hairColor1 :: Bool
+    , eyeColor1 :: Bool
+    , passportID1 :: Bool
+    , countryID1 :: Bool
+    } deriving (Show)
+
 emptyPassport = Passport 
     { birthYear = Nothing
     , issueYear = Nothing
@@ -58,9 +69,9 @@ parseId :: Parser ID
 parseId = integer
 
 parseColor :: Parser Color
--- parseColor = ((:) <$> char '#' <*> many (letter <|> digit)) 
-    -- <|> many lower
-parseColor = many (letter <|> digit <|> char '#')
+parseColor = ((:) <$> char '#' <*> many (letter <|> digit)) 
+    <|> many lower
+-- parseColor = many (letter <|> digit <|> char '#')
 
 parseHeight :: Parser Height
 parseHeight = converter <$> many digit <*> (string "cm" <|> string "in")
@@ -69,6 +80,7 @@ parseHeight = converter <$> many digit <*> (string "cm" <|> string "in")
             "cm" -> CM (read digitstr)
             "in" -> IN (read digitstr)
 
+
 parseYear :: Parser Year
 parseYear = read <$> count 4 digit
 
@@ -76,6 +88,7 @@ data PPField =
     BirthYear Year | IssueYear Year | ExprYear Year |
     HeightField Height | EyeColor Color | HairColor Color | Pid ID | Cid ID
     deriving (Show)
+
 
 
 parseYearField :: Parser PPField
@@ -135,10 +148,49 @@ addField pp field = case field of
     Cid id         -> if countryID pp  == Nothing then pp { countryID  = Just id   } else error ""
 
 
--- workInput :: String -> [Passport]
-workInput lines = parse parsePassports "" fixedstring
+
+data PPField1 = 
+    BirthYear1 | IssueYear1 | ExprYear1 |
+    HeightField1 | EyeColor1 | HairColor1 | Pid1 | Cid1
+    deriving (Show, Eq)
+
+parsePPFieldPresence :: Parser PPField1
+parsePPFieldPresence =
+    decode <$> (
+        string "pid" <|> string "cid" <|> 
+        (try $ string "ecl") <|> (try $ string "hcl") <|> 
+        string "byr" <|> string "iyr" <|>
+        string "eyr" <|> string "hgt") <* char ':' <* (many (digit <|> letter <|> char '#'))
     where
-        fixedstring = trace (replace lines) replace lines
+        decode str = case str of
+            "pid" -> Pid1
+            "cid" -> Cid1
+            "ecl" -> EyeColor1
+            "hcl" -> HairColor1
+            "byr" -> BirthYear1
+            "iyr" -> IssueYear1
+            "eyr" -> ExprYear1
+            "hgt" -> HeightField1
+
+parsePassportFields :: Parser [PPField1]
+parsePassportFields = 
+    parsePPFieldPresence `sepBy1` try (char ' ' <|> char '\n') <* string "%%"
+
+validatePassports :: Parser [Bool]
+validatePassports = (map validPassportFieldList) <$> many parsePassportFields
+
+(∈) = elem
+
+validPassportFieldList :: [PPField1] -> Bool
+validPassportFieldList fields = and
+    [ Pid1 ∈ fields, EyeColor1 ∈ fields, HairColor1 ∈ fields, BirthYear1 ∈ fields, 
+      IssueYear1 ∈ fields, ExprYear1 ∈ fields, HeightField1 ∈ fields ]
+
+
+-- workInput :: String -> [Passport]
+workInput lines = (length . filter id) <$> parse validatePassports "" fixedstring
+    where
+        fixedstring = replace lines
 
 main = workInput <$> readFile "input"
 
