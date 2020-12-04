@@ -5,6 +5,7 @@ import Text.ParserCombinators.Parsec.Language
 import Text.ParserCombinators.Parsec.Expr
 import Text.Parsec.Pos
 import qualified Text.ParserCombinators.Parsec.Token as Token
+import Debug.Trace
 
 sepBy1Try p sep = do
   x <- p
@@ -18,7 +19,7 @@ replace ""           = ""
 
 
 type Year = Int
-type Height = Int
+data Height = CM Int | IN Int deriving (Show, Eq)
 type Color = String
 type ID = Integer
 
@@ -49,8 +50,6 @@ languageDef =
 
 lexer = Token.makeTokenParser languageDef
 
-symbol :: String -> Parser String
-symbol = Token.symbol lexer
 
 integer :: Parser Integer
 integer = read <$> many digit
@@ -59,11 +58,16 @@ parseId :: Parser ID
 parseId = integer
 
 parseColor :: Parser Color
-parseColor = ((:) <$> char '#' <*> many (letter <|> digit)) 
-    <|> many letter
+-- parseColor = ((:) <$> char '#' <*> many (letter <|> digit)) 
+    -- <|> many lower
+parseColor = many (letter <|> digit <|> char '#')
 
 parseHeight :: Parser Height
-parseHeight = read <$> many digit <* (symbol "cm" <|> symbol "in")
+parseHeight = converter <$> many digit <*> (string "cm" <|> string "in")
+    where 
+        converter digitstr measurement = case measurement of
+            "cm" -> CM (read digitstr)
+            "in" -> IN (read digitstr)
 
 parseYear :: Parser Year
 parseYear = read <$> count 4 digit
@@ -76,7 +80,7 @@ data PPField =
 
 parseYearField :: Parser PPField
 parseYearField = 
-    (decode <$> (symbol "byr" <|> symbol "iyr" <|> symbol "eyr")) 
+    (decode <$> (string "byr" <|> string "iyr" <|> string "eyr")) 
     <* char ':' <*> parseYear
     where
         decode code = case code of
@@ -86,11 +90,11 @@ parseYearField =
 
 parseHeightField :: Parser PPField
 parseHeightField =
-    (\_ -> HeightField) <$> symbol "hgt" <* char ':' <*> parseHeight
+    (\_ -> HeightField) <$> string "hgt" <* char ':' <*> parseHeight
 
 parseColorField :: Parser PPField
 parseColorField =
-    (decode <$> (symbol "ecl" <|> symbol "hcl")) <* char ':' <*> parseColor
+    (decode <$> (string "ecl" <|> string "hcl")) <* char ':' <*> parseColor
     where
         decode code = case code of
             "ecl" -> EyeColor
@@ -98,7 +102,7 @@ parseColorField =
 
 parseIdField :: Parser PPField
 parseIdField = 
-    (decode <$> (symbol "pid" <|> symbol "cid")) <* char ':' <*> parseId
+    (decode <$> (string "pid" <|> string "cid")) <* char ':' <*> parseId
     where
         decode code = case code of
             "pid" -> Pid
@@ -111,8 +115,7 @@ parsePPElem = try parseYearField
     <|> try parseHeightField
 
 parsePassport :: Parser Passport
-parsePassport = buildPassport <$> parsePPElem `sepBy1` try (char ' ' <|> char '\n') <* symbol "%%"
-
+parsePassport = buildPassport <$> parsePPElem `sepBy1` try (char ' ' <|> char '\n') <* string "%%"
 
 parsePassports :: Parser [Passport]
 parsePassports = many parsePassport
@@ -135,14 +138,16 @@ addField pp field = case field of
 -- workInput :: String -> [Passport]
 workInput lines = parse parsePassports "" fixedstring
     where
-        fixedstring = replace lines
+        fixedstring = trace (replace lines) replace lines
 
 main = workInput <$> readFile "input"
 
 
 pp1 = "ecl:gry pid:860033327 eyr:2020 hcl:#fffffd\nbyr:1937 iyr:2017 cid:147 hgt:183cm%%"
 pp2 = "ecl:gry hcl:z pid:860033327\n"
-pp3 = "iyr:2010 ecl:gry hgt:181cm pid:591597745 byr:1920 hcl:#6b5442 eyr:2029 cid:123%%"
+pp3 = "iyr:2010 ecl:gry pid:591597745 hgt:181cm byr:1920 hcl:#6b5442 eyr:2029 cid:123%%"
+pp4 = "byr:1970\necl:oth\neyr:2025\npid:409994798 iyr:2018 hgt:189cm%%"
+
 
 testinput = 
     "ecl:gry pid:860033327 eyr:2020 hcl:#fffffd\n\
