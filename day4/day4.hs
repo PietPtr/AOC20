@@ -227,6 +227,11 @@ validPassportFieldList fields = and
     [ Pid1 ∈ fields, EyeColor1 ∈ fields, HairColor1 ∈ fields, BirthYear1 ∈ fields, 
       IssueYear1 ∈ fields, ExprYear1 ∈ fields, HeightField1 ∈ fields ]
 
+validPassportFieldList2 :: [(PPField1, String)] -> Bool
+validPassportFieldList2 fieldsWithContent = validPassportFieldList fields
+    where
+        fields = map (\(f, c) -> f) fieldsWithContent
+
 
 -- workInput :: String -> [Passport]
 -- workInput lines = (length . filter id) <$> parse validatePassports "" fixedstring
@@ -236,6 +241,10 @@ validPassportFieldList fields = and
 
 forall str p = (filter p str) == str
 
+validateField' (field, content) = if (result && field == IssueYear1) then (trace (show input) result) else result
+    where
+        result = validateField input
+        input = (field, content)
 
 validateField :: (PPField1, String) -> Bool
 validateField (BirthYear1, content) = 
@@ -257,13 +266,29 @@ validateField (HeightField1, content) =
         (validnumber, value) = case readValue of
             Just v -> (True, v)
             Nothing -> (False, 0)
+validateField (HairColor1, (first:color)) =
+    first == '#' && length color == 6 &&
+    forall color (\c -> c `elem` ['0'..'9'] || c `elem` ['a'..'f'])
+validateField (EyeColor1, content) =
+    content ∈ ["amb", "blu", "brn", "gry", "grn", "hzl", "oth"]
+validateField (Pid1, content) =
+    length content == 9 && forall content isDigit
+validateField (Cid1, content) = True
 
 
-
-main2 = passports
+main2 = validated
     where
         parser = many parsePassportFields
         passports = ((parse parser "") . replace) <$> readFile "input"
+
+        -- validated = (\(Right pps) -> (length . filter id) $ (map (and . map validateField') pps) ) <$> passports
+
+        validated = (\(Right pps) -> (length . filter id) $ map isValidPassport pps) <$> passports
+
+        isValidPassport pp = and validFields && validPassportFieldList2 pp
+            where validFields = map validateField pp
+
+        -- validateField = (\(Right pps) -> map (and . map validateField) pps ) <$> passports passports
 
 -- main2 = (finalize . replace) <$> readFile "input"
 --     where
