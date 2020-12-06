@@ -1,4 +1,6 @@
 import Data.List
+import Data.Char
+import Text.Read
 -- import Control.Applicative hiding (many)
 import Text.ParserCombinators.Parsec
 import Text.ParserCombinators.Parsec.Language
@@ -92,7 +94,7 @@ data PPField =
 
 
 parseYearField :: Parser PPField
-parseYearField = 
+parseYearField =
     (decode <$> (string "byr" <|> string "iyr" <|> string "eyr")) 
     <* char ':' <*> parseYear
     where
@@ -106,7 +108,7 @@ parseHeightField =
     (\_ -> HeightField) <$> string "hgt" <* char ':' <*> parseHeight
 
 parseColorField :: Parser PPField
-parseColorField =
+parseColorField = 
     (decode <$> (string "ecl" <|> string "hcl")) <* char ':' <*> parseColor
     where
         decode code = case code of
@@ -121,11 +123,27 @@ parseIdField =
             "pid" -> Pid
             "cid" -> Cid
 
-parsePPElem :: Parser PPField
-parsePPElem = try parseYearField 
-    <|> try parseIdField 
-    <|> try parseColorField 
-    <|> try parseHeightField
+
+parsePPElem :: Parser (Maybe PPField)
+parsePPElem = do
+    idres <- (optionMaybe parseIdField)
+    colorres <- (optionMaybe parseColorField)
+    yearres <- (optionMaybe parseYearField)
+    heightres <- (optionMaybe parseHeightField)
+    return $ case (yearres, idres, colorres, heightres) of
+        (Just year, _, _, _) -> (Just year)
+        (_, Just id, _, _)   -> (Just id)
+        (_, _, Just color, _) -> (Just color)
+        (_, _, _, Just height) -> (Just height)
+        _ -> (Nothing)
+
+-- ander plan: gebruik de parser van vraag 1, en doe op de saaie manier de validation i guesss...
+
+parsePPElem' :: Parser (Maybe PPField)
+parsePPElem' = (try $ optionMaybe parseYearField)
+    <|> (try $ optionMaybe parseIdField)
+    <|> (try $ optionMaybe parseColorField)
+    <|> (try $ optionMaybe parseHeightField)
 
 parsePassport :: Parser Passport
 parsePassport = buildPassport <$> parsePPElem `sepBy1` try (char ' ' <|> char '\n') <* string "%%"
@@ -133,11 +151,11 @@ parsePassport = buildPassport <$> parsePPElem `sepBy1` try (char ' ' <|> char '\
 parsePassports :: Parser [Passport]
 parsePassports = many parsePassport
 
-buildPassport :: [PPField] -> Passport
+buildPassport :: [Maybe PPField] -> Passport
 buildPassport fields = foldl addField emptyPassport fields
 
-addField :: Passport -> PPField -> Passport
-addField pp field = case field of
+addField :: Passport -> Maybe PPField -> Passport
+addField pp (Just field) = case field of
     BirthYear year -> if birthYear pp  == Nothing then pp { birthYear  = Just year } else error ""
     IssueYear year -> if issueYear pp  == Nothing then pp { issueYear  = Just year } else error ""
     ExprYear year  -> if exprYear pp   == Nothing then pp { exprYear   = Just year } else error ""
@@ -146,7 +164,7 @@ addField pp field = case field of
     HairColor clr  -> if hairColor pp  == Nothing then pp { hairColor  = Just clr  } else error ""
     Pid id         -> if passportID pp == Nothing then pp { passportID = Just id   } else error ""
     Cid id         -> if countryID pp  == Nothing then pp { countryID  = Just id   } else error ""
-
+addField pp Nothing = pp
 
 
 data PPField1 = 
@@ -172,13 +190,36 @@ parsePPFieldPresence =
             "eyr" -> ExprYear1
             "hgt" -> HeightField1
 
-parsePassportFields :: Parser [PPField1]
+
+
+parsePPField :: Parser (PPField1, String)
+parsePPField = 
+    (\fieldid content -> (decode fieldid, content)) <$> (
+        string "pid" <|> string "cid" <|> 
+        (try $ string "ecl") <|> (try $ string "hcl") <|> 
+        string "byr" <|> string "iyr" <|>
+        string "eyr" <|> string "hgt") <* char ':' <*> (many (digit <|> letter <|> char '#'))
+    where
+        decode str = case str of
+            "pid" -> Pid1
+            "cid" -> Cid1
+            "ecl" -> EyeColor1
+            "hcl" -> HairColor1
+            "byr" -> BirthYear1
+            "iyr" -> IssueYear1
+            "eyr" -> ExprYear1
+            "hgt" -> HeightField1
+
+
+
+parsePassportFields :: Parser [(PPField1, String)]
 parsePassportFields = 
-    parsePPFieldPresence `sepBy1` try (char ' ' <|> char '\n') <* string "%%"
+    parsePPField `sepBy1` try (char ' ' <|> char '\n') <* string "%%"
 
-validatePassports :: Parser [Bool]
-validatePassports = (map validPassportFieldList) <$> many parsePassportFields
+-- validatePassports :: Parser [Bool]
+-- validatePassports = (map validPassportFieldList) <$> many parsePassportFields
 
+(∈) :: Eq a => a -> [a] -> Bool
 (∈) = elem
 
 validPassportFieldList :: [PPField1] -> Bool
@@ -188,11 +229,48 @@ validPassportFieldList fields = and
 
 
 -- workInput :: String -> [Passport]
-workInput lines = (length . filter id) <$> parse validatePassports "" fixedstring
-    where
-        fixedstring = replace lines
+-- workInput lines = (length . filter id) <$> parse validatePassports "" fixedstring
+--     where
+--         fixedstring = replace lines
 
-main = workInput <$> readFile "input"
+
+forall str p = (filter p str) == str
+
+
+validateField :: (PPField1, String) -> Bool
+validateField (BirthYear1, content) = 
+    (length content) == 4 && forall content isDigit &&
+    read content >= 1920 && read content <= 2002
+validateField (IssueYear1, content) =
+    (length content) == 4 && forall content isDigit &&
+    read content >= 2010 && read content <= 2020
+validateField (ExprYear1, content) =
+    (length content) == 4 && forall content isDigit &&
+    read content >= 2020 && read content <= 2030
+validateField (HeightField1, content) = 
+    unit ∈ ["cm", "in"] && validnumber &&
+    (unit == "cm") <= (value >= 150 && value <= 193) &&
+    (unit == "in") <= (value >= 59 && value <= 76)
+    where 
+        unit = (filter (not . isDigit) content)
+        readValue = readMaybe (filter isDigit content)
+        (validnumber, value) = case readValue of
+            Just v -> (True, v)
+            Nothing -> (False, 0)
+
+
+
+main2 = passports
+    where
+        parser = many parsePassportFields
+        passports = ((parse parser "") . replace) <$> readFile "input"
+
+-- main2 = (finalize . replace) <$> readFile "input"
+--     where
+--         finalize input = parse parsePassports "" input
+
+
+
 
 
 pp1 = "ecl:gry pid:860033327 eyr:2020 hcl:#fffffd\nbyr:1937 iyr:2017 cid:147 hgt:183cm%%"
