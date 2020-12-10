@@ -36,6 +36,16 @@ diffs (a:b:xs) = (b - a) : (diffs (b:xs))
 Notice that when calling diffs on the puzzle input, the largest string of consecutive differences
 of 1's is four. I explored the possible combinations of all chains of 1's up to and including four,
 yielding the following conversion:
+
+Tree for four 1s:
+
+   1111
+ /   |   \
+211 121 112
+ \ X  X  /
+ 31 22 13
+
+So, seven combinations.
 --}
 
 calc :: [Int] -> Int
