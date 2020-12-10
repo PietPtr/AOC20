@@ -55,13 +55,48 @@ calc (1:1:1:xs) = 4 * (calc xs)
 calc (1:1:xs) = 2 * (calc xs)
 calc (_:xs) = calc (xs)
 
-solve2' input = (calc . diffs . fix . parse) input
+
+
+solve2' input = (calc' . diffs . fix . parse) input
 
 main2 = solve2' <$> readFile "input"
 
+-- calculate the coefficient hardcoded in the calc function
+coeff :: Int -> Int
+coeff n = length $ unique $ reduceAll start
+    where
+        start = take n $ repeat 1
 
+reduce :: [Int] -> Int -> [Int]
+reduce xs idx = first ++ [a + b] ++ second
+    where
+        (first, a:b:second) = splitAt idx xs
 
+reducable a b = (a == 1 && b == 1) || (a == 1 && b == 2) || (a == 2 && b == 1)
 
+reducableIndices :: [(Int, Int)] -> [Int]
+reducableIndices [(_, _)] = []
+reducableIndices ( (v1, idx1):(v2, idx2):xs ) = index ++ (reducableIndices ((v2, idx2):xs))
+    where 
+        index = if reducable v1 v2
+            then [idx1]
+            else []
+
+reduceAll :: [Int] -> [[Int]]
+reduceAll xs = [xs] ++ (concat $ map reduceAll nextLists)
+    where
+        nextLists = map (\idx -> reduce xs idx) reducables 
+
+        reducables = reducableIndices indexed
+        indexed = zip xs [0..]
+
+calc' :: [Int] -> Int
+calc' [] = 1
+calc' xs = coeff oneLength * calc rest
+    where
+        rest = snd $ splitAt (oneLength + 1) xs
+        oneLength = length oneString 
+        oneString = takeWhile (== 1) xs
 
 -- brute-force solution, too slow
 
