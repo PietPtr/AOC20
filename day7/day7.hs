@@ -80,3 +80,28 @@ whichCanCarry allRules = map snd $ filter (fst) $
     where bagColor (Rule color _) = color
 
 main = (length . whichCanCarry . parseRules) <$> readFile "input"
+
+firstRule all = getRuleForBag all "shiny gold"
+
+-- traverser :: [Rule] -> Rule -> [Int]
+traverser allRules (Rule bagname nextRules) = nextRules
+
+testrules = parseRules testinput
+
+-- amountBags :: [Rule] -> Rule -> [Int]
+amountBags rules (Rule _ []) = 0
+-- amountBags rules (Rule _ [(amount, bag)]) = amount * amountBags rules (getRuleForBag rules bag)
+amountBags rules (Rule n ((amount, bag):leftrules)) = trace (show bag) $
+    amount * (max nextAmount 1) + amountBags rules (Rule n leftrules )
+    where
+        nextRule = getRuleForBag rules bag
+        nextAmount = (amountBags rules nextRule)
+
+
+
+test input = amountBags allRules first
+    where
+        first = firstRule allRules
+        allRules = parseRules input
+
+main2 = test <$> readFile "input"
